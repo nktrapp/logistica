@@ -1,8 +1,10 @@
 package br.furb.pagamento.config;
 
+import br.furb.pagamento.domain.Pagamento;
 import org.flywaydb.core.Flyway;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
@@ -16,7 +18,7 @@ public class HibernateConfig {
         try (InputStream input = HibernateConfig.class.getClassLoader()
                 .getResourceAsStream("hibernate.properties")) {
             if (input == null) {
-                throw new IOException("Arquivo hibernate.properties não encontrado no classpath");
+                throw new IOException("Arquivo hibernate.properties nao encontrado no classpath");
             }
             properties.load(input);
         }
@@ -30,16 +32,12 @@ public class HibernateConfig {
             String username = props.getProperty("hibernate.connection.username");
             String password = props.getProperty("hibernate.connection.password", "");
 
-            Flyway flyway = Flyway.configure()
-                    .dataSource(url, username, password)
-                    .load();
+            Flyway flyway = Flyway.configure().dataSource(url, username, password).load();
 
             flyway.migrate();
             System.out.println("Flyway migrations executed");
         } catch (IOException e) {
-            System.err.println("Error loading Hibernate configuration: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error loading Hibernate configuration", e);
         }
     }
 
@@ -48,16 +46,20 @@ public class HibernateConfig {
             Properties props = loadHibernateProperties();
             Configuration configuration = new Configuration();
             configuration.addProperties(props);
+            configuration.addAnnotatedClass(Pagamento.class);
             sessionFactory = configuration.buildSessionFactory();
             System.out.println("Hibernate SessionFactory initialized");
         } catch (Exception e) {
-            System.err.println("Error initializing SessionFactory: " + e.getMessage());
-            e.printStackTrace();
             throw new ExceptionInInitializerError(e);
         }
     }
 
-    // ...existing code...
+    public static SessionFactory getSessionFactory() {
+        if (sessionFactory == null) {
+            initSessionFactory();
+        }
+        return sessionFactory;
+    }
 
     public static void closeSessionFactory() {
         if (sessionFactory != null && sessionFactory.isOpen()) {
@@ -71,4 +73,3 @@ public class HibernateConfig {
         initSessionFactory();
     }
 }
-

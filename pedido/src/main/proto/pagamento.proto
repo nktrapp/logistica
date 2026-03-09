@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "br.furb.rpc.pagamento";
+option java_outer_classname = "PagamentoProto";
+
+package pagamento;
+
+service PagamentoRpcService {
+  rpc ProcessarPagamento(ProcessarPagamentoRequest) returns (PagamentoResponse);
+  rpc AtualizarMasterPedido(AtualizarMasterPedidoRequest) returns (AtualizarMasterPedidoResponse);
+}
+
+message ProcessarPagamentoRequest {
+  string pedido_id = 1;
+}
+
+message PagamentoResponse {
+  string pagamento_id = 1;
+  string pedido_id = 2;
+  string status = 3;
+}
+
+message AtualizarMasterPedidoRequest {
+  int32 master_node_id = 1;
+}
+
+message AtualizarMasterPedidoResponse {
+  bool ok = 1;
+  int32 pendencias_reenviadas = 2;
+}
+

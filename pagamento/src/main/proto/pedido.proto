@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "br.furb.rpc.pedido";
+option java_outer_classname = "PedidoProto";
+
+package pedido;
+
+service PedidoRpcService {
+  rpc CriarPedido(CriarPedidoRequest) returns (PedidoResponse);
+  rpc MarcarPedidoComoPago(MarcarPedidoComoPagoRequest) returns (PedidoResponse);
+
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc Election(ElectionRequest) returns (ClusterAck);
+  rpc Coordinator(CoordinatorRequest) returns (ClusterAck);
+}
+
+message CriarPedidoRequest {}
+
+message MarcarPedidoComoPagoRequest {
+  string pedido_id = 1;
+}
+
+message PedidoResponse {
+  string pedido_id = 1;
+  string status = 2;
+}
+
+message HeartbeatRequest {
+  int32 from_node_id = 1;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+  int32 node_id = 2;
+  int32 leader_id = 3;
+}
+
+message ElectionRequest {
+  int32 initiator_id = 1;
+  int32 candidate_id = 2;
+}
+
+message CoordinatorRequest {
+  int32 initiator_id = 1;
+  int32 leader_id = 2;
+}
+
+message ClusterAck {
+  bool ok = 1;
+}
