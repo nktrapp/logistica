@@ -1,4 +1,4 @@
-package br.furb.estoque.config;
+package br.furb.pagamento.config;
 
 import org.flywaydb.core.Flyway;
 import org.hibernate.SessionFactory;

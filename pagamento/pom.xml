@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>br.furb</groupId>
-    <artifactId>estoque</artifactId>
+    <artifactId>pagamento</artifactId>
     <version>0.0.1</version>
 
     <properties>

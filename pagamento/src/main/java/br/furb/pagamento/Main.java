@@ -1,6 +1,6 @@
-package br.furb.estoque;
+package br.furb.pagamento;
 
-import br.furb.estoque.config.HibernateConfig;
+import br.furb.pagamento.config.HibernateConfig;
 
 public class Main {
 
