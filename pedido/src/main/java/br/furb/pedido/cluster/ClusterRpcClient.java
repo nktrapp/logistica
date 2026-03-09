@@ -4,6 +4,7 @@ import br.furb.rpc.pedido.ClusterAck;
 import br.furb.rpc.pedido.CoordinatorRequest;
 import br.furb.rpc.pedido.ElectionRequest;
 import br.furb.rpc.pedido.HeartbeatRequest;
+import br.furb.rpc.pedido.HeartbeatResponse;
 import br.furb.rpc.pedido.PedidoRpcServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -34,13 +35,16 @@ public class ClusterRpcClient implements AutoCloseable {
     }
 
     public boolean heartbeat(int targetNodeId, int fromNodeId) {
+        return heartbeatInfo(targetNodeId, fromNodeId) != null;
+    }
+
+    public HeartbeatResponse heartbeatInfo(int targetNodeId, int fromNodeId) {
         try {
             var stub = stub(targetNodeId);
-            stub.withDeadlineAfter(1200, TimeUnit.MILLISECONDS)
+            return stub.withDeadlineAfter(1200, TimeUnit.MILLISECONDS)
                     .heartbeat(HeartbeatRequest.newBuilder().setFromNodeId(fromNodeId).build());
-            return true;
         } catch (StatusRuntimeException e) {
-            return false;
+            return null;
         }
     }
 
