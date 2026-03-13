@@ -2,6 +2,7 @@
 
 ## Autores
 Nikolas Trapp
+<br>
 Paulo Ricardo Machado
 
 projeto de faculdade. demonstração do sistema de eleição em anel.
