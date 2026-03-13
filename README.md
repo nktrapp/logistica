@@ -2,6 +2,8 @@
 
 projeto de faculdade. bem simples.
 
+Java: 25
+
 ## testar
 
 1) criar bancos no postgres
@@ -14,24 +16,24 @@ CREATE DATABASE pagamento_db;
 2) subir 3 instancias do pedido (3 terminais)
 
 ```powershell
-cd C:\Users\nikolas.trapp\tmp\logistica\pedido
+cd ...\logistica\pedido
 mvn -Dexec.mainClass=br.furb.pedido.Main -Dpedido.instance.id=1 exec:java
 ```
 
 ```powershell
-cd C:\Users\nikolas.trapp\tmp\logistica\pedido
+cd ...\logistica\pedido
 mvn -Dexec.mainClass=br.furb.pedido.Main -Dpedido.instance.id=2 exec:java
 ```
 
 ```powershell
-cd C:\Users\nikolas.trapp\tmp\logistica\pedido
+cd ...\logistica\pedido
 mvn -Dexec.mainClass=br.furb.pedido.Main -Dpedido.instance.id=3 exec:java
 ```
 
 3) subir pagamento
 
 ```powershell
-cd C:\Users\nikolas.trapp\tmp\logistica\pagamento
+cd ...\logistica\pagamento
 mvn -Dexec.mainClass=br.furb.pagamento.Main exec:java
 ```
 
