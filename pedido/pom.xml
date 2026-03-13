@@ -9,8 +9,6 @@
     <version>0.0.1</version>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hibernate.version>6.4.4.Final</hibernate.version>
         <flyway.version>9.22.3</flyway.version>
@@ -87,14 +85,16 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <release>25</release>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.plugin.version}</version>
+                <configuration>
+                    <mainClass>br.furb.pedido.Main</mainClass>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.xolstice.maven.plugins</groupId>

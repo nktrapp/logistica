@@ -3,6 +3,8 @@ package br.furb.pagamento.rpc;
 import br.furb.rpc.pedido.MarcarPedidoComoPagoRequest;
 import br.furb.rpc.pedido.PedidoResponse;
 import br.furb.rpc.pedido.PedidoRpcServiceGrpc;
+import br.furb.rpc.pedido.HeartbeatRequest;
+import br.furb.rpc.pedido.HeartbeatResponse;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
@@ -34,7 +36,11 @@ public class PedidoRpcClient implements AutoCloseable {
         if (!stubs.containsKey(initialMasterId)) {
             throw new IllegalArgumentException("master inicial nao existe no cluster de pedidos");
         }
-        this.currentMasterId = new AtomicInteger(initialMasterId);
+
+        int discoveredMasterId = discoverInitialMasterId(initialMasterId);
+        this.currentMasterId = new AtomicInteger(discoveredMasterId);
+        System.out.println("[pedido-rpc-client] master inicial definido. configurado=" + initialMasterId
+                + " descoberto=" + discoveredMasterId);
     }
 
     public void atualizarMaster(int newMasterId) {
@@ -78,6 +84,39 @@ public class PedidoRpcClient implements AutoCloseable {
             }
             throw new RuntimeException("Falha na chamada gRPC para pedido: " + e.getStatus(), e);
         }
+    }
+
+    private int discoverInitialMasterId(int fallbackMasterId) {
+        int bestAliveNodeId = -1;
+        int highestReportedLeader = -1;
+
+        for (Map.Entry<Integer, PedidoRpcServiceGrpc.PedidoRpcServiceBlockingStub> entry : stubs.entrySet()) {
+            int nodeId = entry.getKey();
+            var stub = entry.getValue();
+            try {
+                HeartbeatResponse response = stub.withDeadlineAfter(1200, TimeUnit.MILLISECONDS)
+                        .heartbeat(HeartbeatRequest.newBuilder().setFromNodeId(0).build());
+
+                int reportedLeader = response.getLeaderId() > 0 ? response.getLeaderId() : response.getNodeId();
+                bestAliveNodeId = Math.max(bestAliveNodeId, response.getNodeId());
+                highestReportedLeader = Math.max(highestReportedLeader, reportedLeader);
+
+                System.out.println("[pedido-rpc-client][discovery] probe node=" + nodeId
+                        + " alive=true nodeId=" + response.getNodeId()
+                        + " leaderReported=" + reportedLeader);
+            } catch (StatusRuntimeException e) {
+                System.out.println("[pedido-rpc-client][discovery] probe node=" + nodeId
+                        + " alive=false status=" + e.getStatus());
+            }
+        }
+
+        if (highestReportedLeader > 0 && stubs.containsKey(highestReportedLeader)) {
+            return highestReportedLeader;
+        }
+        if (bestAliveNodeId > 0 && stubs.containsKey(bestAliveNodeId)) {
+            return bestAliveNodeId;
+        }
+        return fallbackMasterId;
     }
 
     @Override

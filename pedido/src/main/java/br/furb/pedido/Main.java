@@ -67,6 +67,10 @@ public class Main {
                         + " detectou cluster ativo. leaderAtual=" + discoveredLeader
                         + " viaNode=" + node.nodeId());
                 return discoveredLeader;
+            } else {
+                System.out.println("[bootstrap] node=" + config.selfNodeId()
+                        + " sem resposta de node=" + node.nodeId()
+                        + ". continuando descoberta.");
             }
         }
 
