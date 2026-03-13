@@ -1,7 +1,6 @@
 package br.furb.pedido;
 
 import br.furb.pedido.cluster.ClusterConfig;
-import br.furb.pedido.cluster.ClusterNode;
 import br.furb.pedido.cluster.ClusterRpcClient;
 import br.furb.pedido.cluster.PagamentoMasterNotifier;
 import br.furb.pedido.cluster.RingElectionManager;
@@ -55,23 +54,25 @@ public class Main {
     }
 
     private static int discoverInitialLeaderId(ClusterConfig config, ClusterRpcClient clusterRpcClient) {
-        for (ClusterNode node : config.ring()) {
-            if (node.nodeId() == config.selfNodeId()) {
-                continue;
+        int nodeId = config.nextNodeId(config.selfNodeId());
+        for (int i = 0; i < config.ring().size() - 1; i++) {
+            if (nodeId == config.selfNodeId()) {
+                break;
             }
 
-            HeartbeatResponse response = clusterRpcClient.heartbeatInfo(node.nodeId(), config.selfNodeId());
+            HeartbeatResponse response = clusterRpcClient.heartbeatInfo(nodeId, config.selfNodeId());
             if (response != null && response.getOk()) {
                 int discoveredLeader = response.getLeaderId() > 0 ? response.getLeaderId() : response.getNodeId();
                 System.out.println("[bootstrap] node=" + config.selfNodeId()
                         + " detectou cluster ativo. leaderAtual=" + discoveredLeader
-                        + " viaNode=" + node.nodeId());
+                        + " viaNode=" + nodeId);
                 return discoveredLeader;
-            } else {
-                System.out.println("[bootstrap] node=" + config.selfNodeId()
-                        + " sem resposta de node=" + node.nodeId()
-                        + ". continuando descoberta.");
             }
+
+            System.out.println("[bootstrap] node=" + config.selfNodeId()
+                    + " sem resposta de node=" + nodeId
+                    + ". tentando proximo no anel.");
+            nodeId = config.nextNodeId(nodeId);
         }
 
         System.out.println("[bootstrap] node=" + config.selfNodeId()

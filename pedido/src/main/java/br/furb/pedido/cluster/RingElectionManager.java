@@ -6,7 +6,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import br.furb.rpc.pedido.HeartbeatResponse;
+
 public class RingElectionManager implements AutoCloseable {
+
+    private record NeighborProbe(HeartbeatResponse response, int neighborNodeId, boolean leaderUnreachableInRing) {
+    }
 
     private final ClusterConfig config;
     private final ClusterRpcClient clusterRpcClient;
@@ -73,14 +78,6 @@ public class RingElectionManager implements AutoCloseable {
             return;
         }
         forwardCoordinator(config.nextNodeId(config.selfNodeId()), initiatorId, newLeaderId);
-
-        if (newLeaderId < config.selfNodeId() && !electionInProgress.get()) {
-            System.out.println("[coordinator-correction] node=" + config.selfNodeId()
-                    + " detectou coordenador inferior ao proprio ID. leaderRecebido=" + newLeaderId
-                    + " self=" + config.selfNodeId()
-                    + ". iniciando nova eleicao para convergir no maior ID.");
-            triggerElection();
-        }
     }
 
     private void heartbeatLoop() {
@@ -88,42 +85,83 @@ public class RingElectionManager implements AutoCloseable {
             return;
         }
 
-        int leader = leaderId.get();
-        boolean leaderAlive = clusterRpcClient.heartbeat(leader, config.selfNodeId());
+        NeighborProbe probe = heartbeatNextActiveNeighbor();
+        HeartbeatResponse neighbor = probe.response();
+        int localLeader = leaderId.get();
 
-        int followerPeer = nextFollowerId();
-        if (followerPeer != config.selfNodeId()) {
-            clusterRpcClient.heartbeat(followerPeer, config.selfNodeId());
-        }
+        if (neighbor != null) {
+            int observedLeader = neighbor.getLeaderId() > 0 ? neighbor.getLeaderId() : neighbor.getNodeId();
+            if (probe.leaderUnreachableInRing() && localLeader != config.selfNodeId()) {
+                int misses = leaderMisses.incrementAndGet();
+                System.out.println("[heartbeat] node=" + config.selfNodeId()
+                        + " detectou lider inalcançavel no anel. leaderAtual=" + localLeader
+                        + " viaVizinho=" + probe.neighborNodeId()
+                        + " leaderObservado=" + observedLeader
+                        + " falhasConsecutivas=" + misses);
 
-        if (leaderAlive) {
+                if (misses >= 2) {
+                    System.out.println("[heartbeat] node=" + config.selfNodeId()
+                            + " confirmou queda do lider=" + localLeader
+                            + ". iniciando eleicao em anel.");
+                    triggerElection();
+                }
+                return;
+            }
+
+            if (observedLeader != localLeader) {
+                System.out.println("[ring-sync] node=" + config.selfNodeId()
+                        + " atualizando lider por gossip do anel. leaderLocal=" + localLeader
+                        + " leaderObservado=" + observedLeader);
+                applyLeader(observedLeader, false);
+            }
             leaderMisses.set(0);
             return;
         }
 
         int misses = leaderMisses.incrementAndGet();
         System.out.println("[heartbeat] node=" + config.selfNodeId()
-                + " nao recebeu heartbeat do master=" + leader
+                + " nao encontrou sucessor ativo no anel"
                 + " falhasConsecutivas=" + misses);
         if (misses >= 2) {
             System.out.println("[heartbeat] node=" + config.selfNodeId()
-                    + " detectou possivel queda do master=" + leader
-                    + ". iniciando eleicao em anel.");
+                    + " detectou anel degradado. iniciando eleicao em anel.");
             triggerElection();
         }
     }
 
-    private int nextFollowerId() {
-        int candidate = config.nextNodeId(config.selfNodeId());
-        int attempts = 0;
-        while (attempts < config.ring().size()) {
-            if (candidate != leaderId.get() && candidate != config.selfNodeId()) {
-                return candidate;
+    private NeighborProbe heartbeatNextActiveNeighbor() {
+        int nextNodeId = config.nextNodeId(config.selfNodeId());
+        int nodeId = nextNodeId;
+        int currentLeader = leaderId.get();
+        boolean leaderUnreachableInRing = false;
+
+        for (int i = 0; i < config.ring().size() - 1; i++) {
+            if (nodeId == config.selfNodeId()) {
+                return new NeighborProbe(null, -1, leaderUnreachableInRing);
             }
-            candidate = config.nextNodeId(candidate);
-            attempts++;
+
+            HeartbeatResponse response = clusterRpcClient.heartbeatInfo(nodeId, config.selfNodeId());
+            if (response != null && response.getOk()) {
+                if (nodeId != nextNodeId) {
+                    System.out.println("[ring-skip] node=" + config.selfNodeId()
+                            + " ignorou inativos e usou sucessor ativo=" + nodeId);
+                }
+                return new NeighborProbe(response, nodeId, leaderUnreachableInRing);
+            }
+
+            if (nodeId == currentLeader) {
+                leaderUnreachableInRing = true;
+                System.out.println("[heartbeat] node=" + config.selfNodeId()
+                        + " nao conseguiu contato com liderAtual=" + currentLeader
+                        + " durante varredura do anel");
+            }
+
+            System.out.println("[ring-skip] node=" + config.selfNodeId()
+                    + " sucessor inativo=" + nodeId
+                    + ". testando proximo no anel.");
+            nodeId = config.nextNodeId(nodeId);
         }
-        return config.selfNodeId();
+        return new NeighborProbe(null, -1, leaderUnreachableInRing);
     }
 
     private void triggerElection() {
@@ -139,13 +177,9 @@ public class RingElectionManager implements AutoCloseable {
         boolean sent = forwardElection(firstTarget, initiator, initiator);
 
         if (!sent) {
-            int fallbackLeader = highestReachableNodeId();
             System.out.println("[election-fallback] node=" + initiator
-                    + " nao conseguiu entregar token de eleicao. maiorNoAlcancavel=" + fallbackLeader);
-            applyLeader(fallbackLeader, fallbackLeader == initiator);
-            if (fallbackLeader != initiator) {
-                forwardCoordinator(config.nextNodeId(initiator), initiator, fallbackLeader);
-            }
+                    + " sem sucessor ativo no anel. assumindo master local (unico no ativo)." );
+            applyLeader(initiator, true);
             electionInProgress.set(false);
         }
     }
@@ -199,23 +233,6 @@ public class RingElectionManager implements AutoCloseable {
                     + " status=FALHA. tentando proximo no anel");
             nodeId = config.nextNodeId(nodeId);
         }
-    }
-
-    private int highestReachableNodeId() {
-        int best = config.selfNodeId();
-        for (ClusterNode node : config.ring()) {
-            if (node.nodeId() == config.selfNodeId()) {
-                continue;
-            }
-            boolean alive = clusterRpcClient.heartbeat(node.nodeId(), config.selfNodeId());
-            System.out.println("[election-fallback] node=" + config.selfNodeId()
-                    + " probe node=" + node.nodeId()
-                    + " alive=" + alive);
-            if (alive && node.nodeId() > best) {
-                best = node.nodeId();
-            }
-        }
-        return best;
     }
 
     private void applyLeader(int newLeaderId, boolean electedBySelf) {
