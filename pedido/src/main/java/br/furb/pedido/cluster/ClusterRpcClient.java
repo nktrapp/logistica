@@ -49,8 +49,10 @@ public class ClusterRpcClient implements AutoCloseable {
                     + " node=" + response.getNodeId());
             return response;
         } catch (StatusRuntimeException e) {
-            System.out.println("[rpc-heartbeat] from=" + fromNodeId + " to=" + targetNodeId
-                    + " status=FALHA grpcStatus=" + e.getStatus());
+            if (fromNodeId < targetNodeId) {
+                System.out.println("[rpc-heartbeat] from=" + fromNodeId + " to=" + targetNodeId
+                        + " status=INDISPONIVEL");
+                }
             return null;
         }
     }
